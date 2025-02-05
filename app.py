@@ -20,8 +20,8 @@ def extract_text():
             return jsonify({"error": "No images part in the request"}), 400
         
         files = request.files.getlist('images')
-        if len(files) != 2:
-            return jsonify({"error": "Please upload exactly two images"}), 400
+        # if len(files) != 2:
+        #     return jsonify({"error": "Please upload exactly two images"}), 400
 
         extracted_texts = []
         
