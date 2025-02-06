@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 import os
 from services.ocr_service import OCRService
+from utils.format_nid_back_text import format_nid_back_text
+from utils.format_nid_front_text import format_nid_front_text
 
 app = Flask(__name__)
 
@@ -15,32 +17,38 @@ ocr_service = OCRService()
 @app.route('/extract-text', methods=['POST'])
 def extract_text():
     try:
-        # Check if the 'images' field is present in the request
-        if 'images' not in request.files:
-            return jsonify({"error": "No images part in the request"}), 400
+        # Check if both images are present in the request
+        if 'nid-front' not in request.files or 'nid-back' not in request.files:
+            return jsonify({"error": "Both nid-front and nid-back images are required"}), 400
         
-        files = request.files.getlist('images')
-        # if len(files) != 2:
-        #     return jsonify({"error": "Please upload exactly two images"}), 400
+        front_file = request.files['nid-front']
+        back_file = request.files['nid-back']
 
-        extracted_texts = []
-        
-        for file in files:
-            filename = secure_filename(file.filename)
-            image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(image_path)
+        extracted_texts = {}
 
-            # Extract text from the image
-            extracted_text = ocr_service.extract_text(image_path)
-            extracted_texts.append({
-                'image': filename,
-                'extracted_text': extracted_text
-            })
-            
-            # Delete the image after processing
-            os.remove(image_path)
+        # Process NID Front Image
+        front_filename = secure_filename(front_file.filename)
+        front_path = os.path.join(app.config['UPLOAD_FOLDER'], front_filename)
+        front_file.save(front_path)
+        front_text = ocr_service.extract_text(front_path)
+        formatted_front_text = format_nid_front_text(front_text)
+        os.remove(front_path)  # Delete after processing
 
-        return jsonify({"status": "success", "data": extracted_texts}), 200
+        # Process NID Back Image
+        back_filename = secure_filename(back_file.filename)
+        back_path = os.path.join(app.config['UPLOAD_FOLDER'], back_filename)
+        back_file.save(back_path)
+        back_text = ocr_service.extract_text(back_path)
+        formatted_back_text = format_nid_back_text(back_text)
+        os.remove(back_path)  # Delete after processing
+
+        # Merge the dictionaries
+        combined_text = {**formatted_front_text, **formatted_back_text}
+
+        # Update extracted_texts
+        extracted_texts.update(combined_text)
+
+        return jsonify(extracted_texts), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
